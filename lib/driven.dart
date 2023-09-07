@@ -7,8 +7,9 @@ import 'package:driven/querybuilder/driveExtensions.dart';
 import 'package:google_sign_in/google_sign_in.dart' as auth;
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
+import 'package:google_sign_in_dartio/google_sign_in_dartio.dart' as dartio;
 
-final _credential = auth.GoogleSignIn.standard(scopes: [
+var _credential = auth.GoogleSignIn.standard(scopes: [
   drive.DriveApi.driveFileScope,
 ]);
 
@@ -21,7 +22,14 @@ class Driven {
     }
   }
 
-  Future<auth.GoogleSignInAccount?> authenticateWithGoogle() async {
+  Future<auth.GoogleSignInAccount?> authenticateWithGoogle(
+      String? clientId) async {
+    if (Platform.isLinux) {
+      await dartio.GoogleSignInDart.register(clientId: clientId!, port: 8080);
+      _credential = auth.GoogleSignIn(clientId: clientId, scopes: [
+        drive.DriveApi.driveFileScope,
+      ]);
+    }
     try {
       final account = await _credential.signIn();
       if (account != null) {
@@ -50,16 +58,18 @@ class Driven {
 
   final signedInStream = StreamController<auth.GoogleSignInAccount?>();
 
-  Future<auth.GoogleSignInAccount> userDetail({final bool signIn = true}) async {
+  Future<auth.GoogleSignInAccount> userDetail(
+      {final bool signIn = true}) async {
     if (!(await _credential.isSignedIn())) {
       if (signIn) {
-        await authenticateWithGoogle();
+        await authenticateWithGoogle(null);
       } else {
         throw 'User not signed in, and userDetail called with signIn set to false.';
       }
     }
 
-    return _credential.currentUser!; // the user is signed in, so we are guarenteed a non-null user object.
+    return _credential
+        .currentUser!; // the user is signed in, so we are guarenteed a non-null user object.
   }
 }
 
@@ -75,7 +85,8 @@ class GoogleAuthClient extends http.BaseClient {
     if (authenticatedUser?.authHeaders == null) {
       throw 'User not authenticated';
     }
-    return _client.send(request..headers.addAll(await authenticatedUser!.authHeaders));
+    return _client
+        .send(request..headers.addAll(await authenticatedUser!.authHeaders));
   }
 }
 

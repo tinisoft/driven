@@ -3,7 +3,7 @@ library driven;
 import 'dart:async';
 import 'dart:io';
 
-import 'package:driven/querybuilder/driveExtensions.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart' as auth;
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
@@ -22,10 +22,11 @@ class Driven {
     }
   }
 
-  Future<auth.GoogleSignInAccount?> authenticateWithGoogle(
-      String? clientId) async {
+  Future<auth.GoogleSignInAccount?> authenticateWithGoogle(String? clientId,
+      {int? port}) async {
+    port ??= 8080;
     if (Platform.isLinux) {
-      await dartio.GoogleSignInDart.register(clientId: clientId!, port: 8080);
+      await dartio.GoogleSignInDart.register(clientId: clientId!, port: port);
       _credential = auth.GoogleSignIn(clientId: clientId, scopes: [
         drive.DriveApi.driveFileScope,
       ]);
@@ -41,9 +42,17 @@ class Driven {
         signedInStream.add(account);
         return account;
       }
+    } on PlatformException catch (e) {
+      print(e);
+      if (!e.message!.contains('SocketException')) {
+        return null;
+      }
+      port += 10;
+      authenticateWithGoogle(clientId, port: port);
     } on Exception catch (ex) {
       print(ex);
       signedInStream.add(null);
+      return null;
     }
 
     // }

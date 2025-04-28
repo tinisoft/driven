@@ -7,7 +7,6 @@ class QueryBuilder {
   static String fileQuery(
     /// The name of the file being looked for.
     final String name, {
-
     /// The mimetype of the file to find. You can use the consts in the MimeType class for easier access.
     final String? mimeType,
 

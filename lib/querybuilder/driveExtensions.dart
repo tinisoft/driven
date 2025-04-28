@@ -15,9 +15,13 @@ import 'package:path/path.dart' as p;
 extension Folder on drive.DriveApi {
   /// Creates a folder, and returns the Google Drive File type.
   /// parents: Pass a list of folder ID's that form the path to where this file should be. Use `getFolderPathAsIds` to get these.
-  Future<drive.File> createFolder(final String folderName, {final String? parent}) async {
+  Future<drive.File> createFolder(final String folderName,
+      {final String? parent}) async {
     final folderId = await files.create(
-      drive.File(name: folderName, mimeType: MimeType.folder, parents: parent == null ? [] : [parent]),
+      drive.File(
+          name: folderName,
+          mimeType: MimeType.folder,
+          parents: parent == null ? [] : [parent]),
     );
     return folderId;
   }
@@ -25,7 +29,8 @@ extension Folder on drive.DriveApi {
   /// Converts a specified path like 'path/to/folder' to folders.
   /// Ignores already created folders, and creates requested folders within them.
   /// Returns a list of FolderPathBit
-  Future<List<FolderPathBit>> createFoldersRecursively(final String folderPath) async {
+  Future<List<FolderPathBit>> createFoldersRecursively(
+      final String folderPath) async {
     final folderRecursion = await getFolderPathAsIds(folderPath);
     final processedPaths = <FolderPathBit>[];
 
@@ -33,13 +38,16 @@ extension Folder on drive.DriveApi {
 
     for (final folder in folderRecursion) {
       if (folder.id != null) {
-        print('${folder.name} already exists, moving to the next folder down the tree...');
+        print(
+            '${folder.name} already exists, moving to the next folder down the tree...');
         processedPaths.add(folder);
       } else {
         print('creating ${folder.name} in tree...');
         final folderId = await createFolder(
           folder.name,
-          parent: processedPaths.isNotEmpty ? processedPaths.last.id : null, // only folders with ID's are added to the list
+          parent: processedPaths.isNotEmpty
+              ? processedPaths.last.id
+              : null, // only folders with ID's are added to the list
         );
         processedPaths.add(FolderPathBit(folderId.name!, folderId.id, depth++));
       }
@@ -51,7 +59,8 @@ extension Folder on drive.DriveApi {
   /// Copies a file from the users' device to Google Drive.
   /// Path must be supplied like path/to/file.txt. Last entry after the final forward-slash must not end
   /// with a forward slash, and will be treated as the file name.
-  Future<drive.File> pushFile(final File file, final String path, {final String? mimeType}) async {
+  Future<drive.File> pushFile(final File file, final String path,
+      {final String? mimeType}) async {
     String? containingFolderId;
     if (path.contains('/')) {
       final containingFolders = path.substring(0, path.lastIndexOf('/'));
@@ -78,34 +87,42 @@ extension Folder on drive.DriveApi {
         return existingFileData.files!.first;
       }
     }
-    final driveFile =
-        drive.File(name: fileName, mimeType: mimeType ?? lookupMimeType(fileName), parents: containingFolderId == null ? [] : [containingFolderId]);
+    final driveFile = drive.File(
+        name: fileName,
+        mimeType: mimeType ?? lookupMimeType(fileName),
+        parents: containingFolderId == null ? [] : [containingFolderId]);
 
     final length = await file.length();
     final fileContents = file.openRead();
 
-    final destinationFile = await drive.DriveApi(GoogleAuthClient()).files.create(
-          driveFile,
-          uploadMedia: drive.Media(
-            fileContents,
-            length,
-          ),
-        );
+    final destinationFile =
+        await drive.DriveApi(GoogleAuthClient()).files.create(
+              driveFile,
+              uploadMedia: drive.Media(
+                fileContents,
+                length,
+              ),
+            );
     return destinationFile;
   }
 
   /// Copies a local filesystem folder to Google Drive. Mimetypes are interpreted from the files
   /// Specify a destinationDirectory to use. Cannot copy to root of drive.
-  Stream<FolderTransferProgress> pushFolder(final Directory directory, final String destinationDirectory) async* {
+  Stream<FolderTransferProgress> pushFolder(
+      final Directory directory, final String destinationDirectory) async* {
     int fileCount = 0;
     final rootPath = directory.path;
 
     final totalFileCount = await directory.list(recursive: true).length;
 
-    await for (final file in directory.list(recursive: true).where((event) => event.statSync().type == FileSystemEntityType.file)) {
+    await for (final file in directory
+        .list(recursive: true)
+        .where((event) => event.statSync().type == FileSystemEntityType.file)) {
       fileCount++;
-      final remotePath = '$destinationDirectory/${file.path.substring(rootPath.length)}';
-      yield FolderTransferProgress(FolderPushStatus.sending, path: file.path, copiedFiles: fileCount, totalCount: totalFileCount);
+      final remotePath =
+          '$destinationDirectory/${file.path.substring(rootPath.length)}';
+      yield FolderTransferProgress(FolderPushStatus.sending,
+          path: file.path, copiedFiles: fileCount, totalCount: totalFileCount);
       // todo keep track of folders we have already created, so we don't recheck these folders needlessly
       await pushFile(File(file.path), remotePath);
     }
@@ -114,26 +131,33 @@ extension Folder on drive.DriveApi {
 
   /// Retrieves a folder from a Google Drive location to the local device
   /// If the remote folder does not exist, function will throw
-  Stream<FolderTransferProgress> receiveFolder(String remoteFolderId, final Directory localDirectory) async* {
+  Stream<FolderTransferProgress> receiveFolder(
+      String remoteFolderId, final Directory localDirectory) async* {
     print('Copying ID ${remoteFolderId} to ${localDirectory.path}...');
-    final filesInFolder = await files.list(q: GoogleDriveQueryHelper.fileListQuery(remoteFolderId));
+    final filesInFolder = await files.list(
+        q: GoogleDriveQueryHelper.fileListQuery(remoteFolderId));
     if (filesInFolder.files != null) {
       for (final entity in filesInFolder.files!) {
         // Could either be a file or a folder
         if (entity.mimeType == MimeType.folder) {
-          final childDirectory = Directory(p.join(localDirectory.path, entity.name));
+          final childDirectory =
+              Directory(p.join(localDirectory.path, entity.name));
           if (!(await childDirectory.exists())) {
             await childDirectory.create(recursive: true);
           }
           if (entity.id == null) {
-            print('ID of found google drive folder is null? This is a bug, please open a bug report');
+            print(
+                'ID of found google drive folder is null? This is a bug, please open a bug report');
           } else {
-            print('Found ${entity.name} folder, (ID: ${entity.id}). Recursively copying.');
+            print(
+                'Found ${entity.name} folder, (ID: ${entity.id}). Recursively copying.');
             yield* receiveFolder(entity.id!, childDirectory);
           }
         } else {
-          print('Processing file copy for ${entity.name} (with mimetype of ${entity.mimeType}, copying to directory ${localDirectory.path}');
-          final file = await files.get(entity.id!, downloadOptions: drive.DownloadOptions.fullMedia);
+          print(
+              'Processing file copy for ${entity.name} (with mimetype of ${entity.mimeType}, copying to directory ${localDirectory.path}');
+          final file = await files.get(entity.id!,
+              downloadOptions: drive.DownloadOptions.fullMedia);
           if (file is drive.Media) {
             final filePath = p.join(localDirectory.path, entity.name);
             final destinationFile = File(filePath);
@@ -142,7 +166,8 @@ extension Folder on drive.DriveApi {
               destinationFile.writeAsBytes(bytes, mode: FileMode.append);
             }
           } else {
-            print("WARNING: Received a file that wasn't of type media. Instead, it was of type ${file.runtimeType.toString()}");
+            print(
+                "WARNING: Received a file that wasn't of type media. Instead, it was of type ${file.runtimeType.toString()}");
           }
         }
       }
@@ -175,7 +200,8 @@ extension Folder on drive.DriveApi {
         ),
       );
       if (folder.files == null) {
-        print('DEBUG: When searching for $bit, no folders were returned. Are you logged in?');
+        print(
+            'DEBUG: When searching for $bit, no folders were returned. Are you logged in?');
         throw ('Files are null.');
       }
       // if (folder.files!.isEmpty) {
@@ -185,7 +211,8 @@ extension Folder on drive.DriveApi {
         print('DEBUG: More than one result found, picking the first one!');
       }
       if (folder.files!.isNotEmpty) {
-        folderIds.add(FolderPathBit(folder.files![0].name!, folder.files![0].id!, depth));
+        folderIds.add(
+            FolderPathBit(folder.files![0].name!, folder.files![0].id!, depth));
       } else {
         folderIds.add(FolderPathBit(bit, null, depth));
       }
@@ -199,14 +226,14 @@ class GoogleDriveQueryHelper {
   /// Creates a query that searches for a particular file, name, and mimetype.
   static String fileQuery(
     final String name, {
-
     /// The mime type to search for. You can specify your own, but you're probably better off using the pre-written ones in the MimeType class.
     required final String mimeType,
 
     /// The ID of the parent folder
     final String? parent,
   }) {
-    final query = "mimeType='$mimeType' and name='$name' and trashed = false ${parent != null ? "and '$parent' in parents" : ""}";
+    final query =
+        "mimeType='$mimeType' and name='$name' and trashed = false ${parent != null ? "and '$parent' in parents" : ""}";
     print('Prepared query: $query');
     return query;
   }
